@@ -1,0 +1,20 @@
+name: openrouter_client
+description: "A Dart client library for the OpenRouter API."
+version: 0.1.0
+homepage:
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  http: ^1.2.2
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.8
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+
