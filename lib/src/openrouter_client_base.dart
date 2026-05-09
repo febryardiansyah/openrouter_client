@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'models/chat.dart';
+import 'models/chat_stream.dart';
 import 'models/completion.dart';
 import 'models/model_info.dart';
 import 'openrouter_exception.dart';
@@ -16,10 +17,10 @@ class OpenRouterClient {
     /// Optional HTTP client. If not provided, a new instance will be created.
     http.Client? httpClient,
 
-    /// Optional referer header value to include in requests.
+    /// Optional [HTTP-Referer] header value to include in requests.
     this.referer,
 
-    /// Optional title header value to include in requests.
+    /// Optional [X-Title] header value to include in requests.
     this.title,
     Map<String, String>? additionalHeaders,
   })  : _http = httpClient ?? http.Client(),
@@ -32,11 +33,15 @@ class OpenRouterClient {
   final http.Client _http;
   final Map<String, String> _additionalHeaders;
 
+  /// Retrieves a list of available models from the OpenRouter API.
+  /// Returns an [OpenRouterModelsResponse] containing the list of models.
   Future<OpenRouterModelsResponse> listModels() async {
     final json = await _getJson('models');
     return OpenRouterModelsResponse.fromJson(json);
   }
 
+  /// Creates a chat completion based on the provided [ChatCompletionRequest].
+  /// Returns a [ChatCompletionResponse] containing the generated completion.
   Future<ChatCompletionResponse> createChatCompletion(
     ChatCompletionRequest request,
   ) async {
@@ -44,18 +49,75 @@ class OpenRouterClient {
     return ChatCompletionResponse.fromJson(json);
   }
 
-  Future<Map<String, dynamic>> createCompletion(
-    CompletionRequest request,
-  ) async {
-    return _postJson('/completions', request.toJson());
+  /// Creates a chat completion stream based on the provided [ChatCompletionRequest].
+  /// Returns a stream of [ChatCompletionStreamResponse] objects as the completion is generated.
+  Stream<ChatCompletionStreamResponse> streamChatCompletion(
+    ChatCompletionRequest request,
+  ) async* {
+    final payload = <String, Object?>{
+      ...request.toJson(),
+      'stream': true,
+    };
+
+    final streamedResponse = await _http.send(
+      http.Request('POST', _resolveUri('chat/completions'))
+        ..headers.addAll(_headers())
+        ..body = jsonEncode(payload),
+    );
+
+    if (streamedResponse.statusCode < 200 ||
+        streamedResponse.statusCode >= 300) {
+      final body = await streamedResponse.stream.bytesToString();
+      final errorResponse = http.Response(
+        body,
+        streamedResponse.statusCode,
+        headers: streamedResponse.headers,
+      );
+      _decodeResponse(errorResponse);
+      return;
+    }
+
+    final lines = streamedResponse.stream
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
+
+    await for (final line in lines) {
+      if (!line.startsWith('data:')) {
+        continue;
+      }
+
+      final data = line.substring(5).trimLeft();
+      if (data.isEmpty) {
+        continue;
+      }
+      if (data == '[DONE]') {
+        break;
+      }
+
+      final decoded = _tryDecode(data);
+      if (decoded is Map<String, dynamic>) {
+        yield ChatCompletionStreamResponse.fromJson(decoded);
+      }
+    }
   }
 
+  /// Creates a completion based on the provided [CompletionRequest].
+  Future<CompletionResponse> createCompletion(
+    CompletionRequest request,
+  ) async {
+    final json = await _postJson('/completions', request.toJson());
+    return CompletionResponse.fromJson(json);
+  }
+
+  /// Closes the underlying HTTP client. Should be called when the client is no longer needed.
   void close() => _http.close();
 
+  /// Resolves a relative API path to a full URI.
   Uri _resolveUri(String path) {
     return Uri.parse('https://openrouter.ai/api/v1/$path');
   }
 
+  /// Constructs the headers for API requests, including authorization and any additional headers.
   Map<String, String> _headers() {
     final headers = <String, String>{
       'Authorization': 'Bearer $apiKey',
@@ -75,11 +137,13 @@ class OpenRouterClient {
     return headers;
   }
 
+  /// Helper method to perform a GET request and decode the JSON response.
   Future<Map<String, dynamic>> _getJson(String path) async {
     final response = await _http.get(_resolveUri(path), headers: _headers());
     return _decodeResponse(response);
   }
 
+  /// Helper method to perform a POST request with a JSON payload and decode the JSON response.
   Future<Map<String, dynamic>> _postJson(
     String path,
     Map<String, Object?> payload,
@@ -92,6 +156,8 @@ class OpenRouterClient {
     return _decodeResponse(response);
   }
 
+  /// Decodes the HTTP response, handling errors and extracting error messages when necessary.
+  /// Returns the decoded JSON as a Map if the response is successful, or throws an appropriate exception if an error occurs.
   Map<String, dynamic> _decodeResponse(http.Response response) {
     final body = response.body;
 
@@ -158,6 +224,7 @@ class OpenRouterClient {
     throw OpenRouterException('Unexpected response format.');
   }
 
+  /// Tries to decode a JSON string, returning the decoded object or the original string if decoding fails.
   Object? _tryDecode(String body) {
     if (body.isEmpty) {
       return null;
@@ -170,6 +237,7 @@ class OpenRouterClient {
     }
   }
 
+  /// Extracts an error message from the response body if it follows the expected error format.
   String? _extractErrorMessage(String body) {
     final decoded = _tryDecode(body);
 

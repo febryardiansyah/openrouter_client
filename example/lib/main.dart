@@ -89,19 +89,34 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
     });
 
     final client = _createClient();
+    final buffer = StringBuffer();
     try {
-      final response = await client.createChatCompletion(
+      await for (final chunk in client.streamChatCompletion(
         ChatCompletionRequest(
           model: modelId,
           messages: [ChatMessage(role: 'user', content: prompt)],
           temperature: 0.7,
         ),
-      );
+      )) {
+        final delta = _extractStreamDelta(chunk);
+        if (delta.isEmpty) {
+          continue;
+        }
 
-      setState(() {
-        _responseText = _extractContent(response);
-      });
-    } on OpenRouterException catch (error) {
+        buffer.write(delta);
+        if (mounted) {
+          setState(() {
+            _responseText = buffer.toString();
+          });
+        }
+      }
+
+      if (buffer.isEmpty && mounted) {
+        setState(() {
+          _responseText = 'No response choices.';
+        });
+      }
+    } on OpenRouterApiException catch (error) {
       setState(() {
         _errorText = error.message;
       });
@@ -119,13 +134,16 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
     }
   }
 
-  String _extractContent(ChatCompletionResponse response) {
+  String _extractStreamDelta(ChatCompletionStreamResponse response) {
     if (response.choices.isEmpty) {
-      return 'No response choices.';
+      return '';
     }
 
-    final content = response.choices.first.message.content;
-    if (content is String && content.isNotEmpty) {
+    final content = response.choices.first.delta.content;
+    if (content == null) {
+      return '';
+    }
+    if (content is String) {
       return content;
     }
 
