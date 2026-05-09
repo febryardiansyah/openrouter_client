@@ -21,17 +21,17 @@ class OpenRouterModel {
   }
 }
 
-class ModelsResponse {
-  ModelsResponse({required this.data});
+class OpenRouterModelsResponse {
+  OpenRouterModelsResponse({required this.data});
 
   final List<OpenRouterModel> data;
 
-  factory ModelsResponse.fromJson(Map<String, dynamic> json) {
+  factory OpenRouterModelsResponse.fromJson(Map<String, dynamic> json) {
     final models = (json['data'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map(OpenRouterModel.fromJson)
         .toList();
 
-    return ModelsResponse(data: models);
+    return OpenRouterModelsResponse(data: models);
   }
 }

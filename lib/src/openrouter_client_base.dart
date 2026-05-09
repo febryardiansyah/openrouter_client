@@ -12,10 +12,13 @@ class OpenRouterClient {
   OpenRouterClient({
     /// Your OpenRouter API key. You can find this in your OpenRouter dashboard.
     required this.apiKey,
+
     /// Optional HTTP client. If not provided, a new instance will be created.
     http.Client? httpClient,
+
     /// Optional referer header value to include in requests.
     this.referer,
+
     /// Optional title header value to include in requests.
     this.title,
     Map<String, String>? additionalHeaders,
@@ -31,9 +34,9 @@ class OpenRouterClient {
 
   final Uri _baseUri = Uri.parse('https://openrouter.ai/api/v1');
 
-  Future<ModelsResponse> listModels() async {
+  Future<OpenRouterModelsResponse> listModels() async {
     final json = await _getJson('/models');
-    return ModelsResponse.fromJson(json);
+    return OpenRouterModelsResponse.fromJson(json);
   }
 
   Future<Map<String, dynamic>> createChatCompletion(
@@ -95,11 +98,57 @@ class OpenRouterClient {
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final errorMessage = _extractErrorMessage(body);
-      throw OpenRouterApiException(
-        errorMessage ?? 'Request failed',
-        statusCode: response.statusCode,
-        responseBody: _tryDecode(body),
-      );
+      final message = errorMessage ?? 'Request failed';
+      final responseBody = _tryDecode(body);
+
+      switch (response.statusCode) {
+        case 400:
+          throw OpenRouterBadRequestException(
+            message,
+            responseBody: responseBody,
+          );
+        case 401:
+          throw OpenRouterAuthenticationException(
+            message,
+            responseBody: responseBody,
+          );
+        case 402:
+          throw OpenRouterInsufficientCreditsException(
+            message,
+            responseBody: responseBody,
+          );
+        case 403:
+          throw OpenRouterModerationException(
+            message,
+            responseBody: responseBody,
+          );
+        case 408:
+          throw OpenRouterTimeoutException(
+            message,
+            responseBody: responseBody,
+          );
+        case 429:
+          throw OpenRouterRateLimitException(
+            message,
+            responseBody: responseBody,
+          );
+        case 502:
+          throw OpenRouterUpstreamException(
+            message,
+            responseBody: responseBody,
+          );
+        case 503:
+          throw OpenRouterNoProviderException(
+            message,
+            responseBody: responseBody,
+          );
+        default:
+          throw OpenRouterApiException(
+            message,
+            statusCode: response.statusCode,
+            responseBody: responseBody,
+          );
+      }
     }
 
     final decoded = _tryDecode(body);
@@ -124,10 +173,13 @@ class OpenRouterClient {
 
   String? _extractErrorMessage(String body) {
     final decoded = _tryDecode(body);
+
     if (decoded is Map<String, dynamic>) {
       final error = decoded['error'];
+
       if (error is Map<String, dynamic>) {
         final message = error['message'];
+
         if (message is String && message.isNotEmpty) {
           return message;
         }
