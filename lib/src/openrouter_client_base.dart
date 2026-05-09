@@ -32,17 +32,16 @@ class OpenRouterClient {
   final http.Client _http;
   final Map<String, String> _additionalHeaders;
 
-  final Uri _baseUri = Uri.parse('https://openrouter.ai/api/v1');
-
   Future<OpenRouterModelsResponse> listModels() async {
-    final json = await _getJson('/models');
+    final json = await _getJson('models');
     return OpenRouterModelsResponse.fromJson(json);
   }
 
-  Future<Map<String, dynamic>> createChatCompletion(
+  Future<ChatCompletionResponse> createChatCompletion(
     ChatCompletionRequest request,
   ) async {
-    return _postJson('/chat/completions', request.toJson());
+    final json = await _postJson('chat/completions', request.toJson());
+    return ChatCompletionResponse.fromJson(json);
   }
 
   Future<Map<String, dynamic>> createCompletion(
@@ -54,7 +53,7 @@ class OpenRouterClient {
   void close() => _http.close();
 
   Uri _resolveUri(String path) {
-    return _baseUri.replace(path: '${_baseUri.path}/$path');
+    return Uri.parse('https://openrouter.ai/api/v1/$path');
   }
 
   Map<String, String> _headers() {

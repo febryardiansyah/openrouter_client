@@ -43,11 +43,8 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
     text: 'Say hello from OpenRouter in one sentence.',
   );
 
-  List<OpenRouterModel> _models = const [];
-  String? _selectedModelId;
   String? _responseText;
   String? _errorText;
-  bool _loadingModels = false;
   bool _sending = false;
 
   @override
@@ -58,55 +55,12 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
   }
 
   OpenRouterClient _createClient() {
-    return OpenRouterClient(
-      apiKey: _apiKeyController.text.trim(),
-    );
+    return OpenRouterClient(apiKey: _apiKeyController.text.trim());
   }
 
-  void _loadModels() async {
+  Future<void> _sendPrompt() async {
     final apiKey = _apiKeyController.text.trim();
-    if (apiKey.isEmpty) {
-      setState(() {
-        _errorText = 'Enter your OpenRouter API key first.';
-      });
-      return;
-    }
-
-    setState(() {
-      _loadingModels = true;
-      _errorText = null;
-    });
-
-    final client = _createClient();
-
-    try {
-      final models = await client.listModels();
-
-      setState(() {
-        _models = models.data;
-        _selectedModelId = models.data.isNotEmpty ? models.data.first.id : null;
-        _errorText = _models.isEmpty ? 'No models returned.' : null;
-      });
-    } on OpenRouterException catch (error) {
-      setState(() {
-        _errorText = error.message;
-      });
-    } catch (error) {
-      setState(() {
-        _errorText = 'Failed to load models: $error';
-      });
-    } finally {
-      client.close();
-      if (mounted) {
-        setState(() {
-          _loadingModels = false;
-        });
-      }
-    }
-  }
-
-  void _sendPrompt() async {
-    final apiKey = _apiKeyController.text.trim();
+    final modelId = 'openai/gpt-4o-mini';
     final prompt = _promptController.text.trim();
 
     if (apiKey.isEmpty) {
@@ -121,12 +75,11 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
       });
       return;
     }
-
-    if (_models.isEmpty || _selectedModelId == null) {
-      _loadModels();
-      if (_selectedModelId == null) {
-        return;
-      }
+    if (modelId.isEmpty) {
+      setState(() {
+        _errorText = 'Enter a model id first.';
+      });
+      return;
     }
 
     setState(() {
@@ -139,10 +92,8 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
     try {
       final response = await client.createChatCompletion(
         ChatCompletionRequest(
-          model: _selectedModelId!,
-          messages: [
-            ChatMessage(role: 'user', content: prompt),
-          ],
+          model: modelId,
+          messages: [ChatMessage(role: 'user', content: prompt)],
           temperature: 0.7,
         ),
       );
@@ -168,26 +119,17 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
     }
   }
 
-  String _extractContent(Map<String, dynamic> response) {
-    final choices = response['choices'];
-    if (choices is List && choices.isNotEmpty) {
-      final first = choices.first;
-      if (first is Map<String, dynamic>) {
-        final message = first['message'];
-        if (message is Map<String, dynamic>) {
-          final content = message['content'];
-          if (content is String && content.isNotEmpty) {
-            return content;
-          }
-        }
-        final text = first['text'];
-        if (text is String && text.isNotEmpty) {
-          return text;
-        }
-      }
+  String _extractContent(ChatCompletionResponse response) {
+    if (response.choices.isEmpty) {
+      return 'No response choices.';
     }
 
-    return response.toString();
+    final content = response.choices.first.message.content;
+    if (content is String && content.isNotEmpty) {
+      return content;
+    }
+
+    return content.toString();
   }
 
   @override
@@ -207,8 +149,9 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final maxWidth =
-                  constraints.maxWidth > 720 ? 720.0 : constraints.maxWidth;
+              final maxWidth = constraints.maxWidth > 720
+                  ? 720.0
+                  : constraints.maxWidth;
 
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
@@ -224,7 +167,7 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Fetch models, pick one, and send a prompt.',
+                          'Enter a model id and send a prompt.',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 24),
@@ -239,56 +182,6 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
                                   labelText: 'OpenRouter API key',
                                   hintText: 'sk-or-...',
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      onPressed:
-                                          _loadingModels ? null : _loadModels,
-                                      icon: _loadingModels
-                                          ? const SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                              ),
-                                            )
-                                          : const Icon(Icons.cloud_download),
-                                      label: Text(
-                                        _loadingModels
-                                            ? 'Loading models...'
-                                            : 'Load models',
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              DropdownButtonFormField<String>(
-                                value: _selectedModelId,
-                                decoration: const InputDecoration(
-                                  labelText: 'Model',
-                                ),
-                                items: _models
-                                    .map(
-                                      (model) => DropdownMenuItem(
-                                        value: model.id,
-                                        child: Text(
-                                          model.name == null
-                                              ? model.id
-                                              : '${model.name} (${model.id})',
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedModelId = value;
-                                  });
-                                },
                               ),
                             ],
                           ),
@@ -345,19 +238,16 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
                             title: 'Response',
                             child: Text(
                               _responseText!,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge
-                                  ?.copyWith(height: 1.4),
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodyLarge?.copyWith(height: 1.4),
                             ),
                           ),
                         ],
                         const SizedBox(height: 24),
                         Text(
                           'Tip: keep your API key in a safe place.',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
+                          style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: colorScheme.outline),
                         ),
                       ],
@@ -400,10 +290,9 @@ class _SectionCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 16),
           child,
@@ -439,10 +328,9 @@ class _StatusBanner extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: textColor),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: textColor),
             ),
           ),
         ],
