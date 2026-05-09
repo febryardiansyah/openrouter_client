@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:openrouter_client/openrouter_client.dart';
 
@@ -46,6 +48,7 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
   String? _responseText;
   String? _errorText;
   bool _sending = false;
+  bool _useToolCalling = false;
 
   @override
   void dispose() {
@@ -89,32 +92,19 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
     });
 
     final client = _createClient();
-    final buffer = StringBuffer();
     try {
-      await for (final chunk in client.streamChatCompletion(
-        ChatCompletionRequest(
-          model: modelId,
-          messages: [ChatMessage(role: 'user', content: prompt)],
-          temperature: 0.7,
-        ),
-      )) {
-        final delta = _extractStreamDelta(chunk);
-        if (delta.isEmpty) {
-          continue;
-        }
-
-        buffer.write(delta);
-        if (mounted) {
-          setState(() {
-            _responseText = buffer.toString();
-          });
-        }
-      }
-
-      if (buffer.isEmpty && mounted) {
-        setState(() {
-          _responseText = 'No response choices.';
-        });
+      if (_useToolCalling) {
+        await _sendPromptWithTools(
+          client: client,
+          modelId: modelId,
+          prompt: prompt,
+        );
+      } else {
+        await _sendPromptStreamed(
+          client: client,
+          modelId: modelId,
+          prompt: prompt,
+        );
       }
     } on OpenRouterApiException catch (error) {
       setState(() {
@@ -132,6 +122,118 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
         });
       }
     }
+  }
+
+  Future<void> _sendPromptStreamed({
+    required OpenRouterClient client,
+    required String modelId,
+    required String prompt,
+  }) async {
+    final buffer = StringBuffer();
+    await for (final chunk in client.streamChatCompletion(
+      ChatCompletionRequest(
+        model: modelId,
+        messages: [ChatMessage(role: 'user', content: prompt)],
+        temperature: 0.7,
+      ),
+    )) {
+      final delta = _extractStreamDelta(chunk);
+      if (delta.isEmpty) {
+        continue;
+      }
+
+      buffer.write(delta);
+      if (mounted) {
+        setState(() {
+          _responseText = buffer.toString();
+        });
+      }
+    }
+
+    if (buffer.isEmpty && mounted) {
+      setState(() {
+        _responseText = 'No response choices.';
+      });
+    }
+  }
+
+  Future<void> _sendPromptWithTools({
+    required OpenRouterClient client,
+    required String modelId,
+    required String prompt,
+  }) async {
+    final firstResponse = await client.createChatCompletion(
+      ChatCompletionRequest(
+        model: modelId,
+        messages: [ChatMessage(role: 'user', content: prompt)],
+        temperature: 0.7,
+        tools: _toolDefinitions(),
+      ),
+    );
+    final firstMessage = firstResponse.choices.isNotEmpty
+        ? firstResponse.choices.first.message
+        : ChatMessage(role: 'assistant', content: 'No response choices.');
+    final toolCalls = firstMessage.toolCalls;
+
+    if (toolCalls == null || toolCalls.isEmpty) {
+      _setResponseText(firstMessage.content.toString());
+      return;
+    }
+
+    final toolMessages = await _resolveToolCalls(toolCalls);
+
+    final finalMessage = toolMessages.isNotEmpty
+        ? toolMessages.first
+        : ChatMessage(role: 'assistant', content: 'No response choices.');
+
+    _setResponseText(finalMessage.content.toString());
+  }
+
+  void _setResponseText(String text) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _responseText = text;
+    });
+  }
+
+  List<ToolDefinition> _toolDefinitions() {
+    return [
+      ToolDefinition(
+        function: ToolFunctionDefinition(
+          name: 'say_hi',
+          description: 'Return a friendly hello message.',
+          parameters: {'type': 'object', 'properties': {}},
+        ),
+      ),
+    ];
+  }
+
+  Future<List<ChatMessage>> _resolveToolCalls(List<ToolCall> toolCalls) async {
+    final responses = <ChatMessage>[];
+
+    for (final call in toolCalls) {
+      final name = call.function?.name ?? '';
+
+      if (name == 'say_hi') {
+        final result = 'Hi! what do u want from me?';
+        responses.add(
+          ChatMessage(role: 'tool', content: result, toolCallId: call.id),
+        );
+      } else {
+        responses.add(
+          ChatMessage(
+            role: 'tool',
+            content: jsonEncode({'error': 'Unknown tool: $name'}),
+            toolCallId: call.id,
+          ),
+        );
+      }
+    }
+
+    return responses;
   }
 
   String _extractStreamDelta(ChatCompletionStreamResponse response) {
@@ -209,6 +311,20 @@ class _OpenRouterDemoPageState extends State<OpenRouterDemoPage> {
                           title: 'Prompt',
                           child: Column(
                             children: [
+                              SwitchListTile(
+                                value: _useToolCalling,
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text('Enable tool calling'),
+                                subtitle: const Text(
+                                  'Allow the model to request local tools.',
+                                ),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _useToolCalling = value;
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 12),
                               TextField(
                                 controller: _promptController,
                                 maxLines: 4,

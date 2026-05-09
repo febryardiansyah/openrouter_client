@@ -1,21 +1,32 @@
 import 'chat.dart';
+import 'tools.dart';
 
 class ChatCompletionStreamDelta {
   ChatCompletionStreamDelta({
     this.role,
     this.content,
     this.name,
+    this.toolCalls,
   });
 
   final String? role;
   final Object? content;
   final String? name;
+  final List<ToolCall>? toolCalls;
 
   factory ChatCompletionStreamDelta.fromJson(Map<String, dynamic> json) {
+    final toolCallsJson = json['tool_calls'];
+
     return ChatCompletionStreamDelta(
       role: json['role'] as String?,
       content: json['content'],
       name: json['name'] as String?,
+      toolCalls: toolCallsJson is List
+          ? toolCallsJson
+              .whereType<Map<String, dynamic>>()
+              .map(ToolCall.fromJson)
+              .toList()
+          : null,
     );
   }
 }

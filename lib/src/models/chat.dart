@@ -1,19 +1,34 @@
+import 'tools.dart';
+
 class ChatMessage {
   ChatMessage({
     required this.role,
     required this.content,
     this.name,
+    this.toolCalls,
+    this.toolCallId,
   });
 
   final String role;
   final Object content;
   final String? name;
+  final List<ToolCall>? toolCalls;
+  final String? toolCallId;
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    final toolCallsJson = json['tool_calls'];
+
     return ChatMessage(
       role: json['role'] as String? ?? '',
       content: json['content'] ?? '',
       name: json['name'] as String?,
+      toolCalls: toolCallsJson is List
+          ? toolCallsJson
+              .whereType<Map<String, dynamic>>()
+              .map(ToolCall.fromJson)
+              .toList()
+          : null,
+      toolCallId: json['tool_call_id'] as String?,
     );
   }
 
@@ -25,6 +40,12 @@ class ChatMessage {
 
     if (name != null && name!.isNotEmpty) {
       json['name'] = name;
+    }
+    if (toolCalls != null && toolCalls!.isNotEmpty) {
+      json['tool_calls'] = toolCalls!.map((call) => call.toJson()).toList();
+    }
+    if (toolCallId != null && toolCallId!.isNotEmpty) {
+      json['tool_call_id'] = toolCallId;
     }
 
     return json;
@@ -39,6 +60,8 @@ class ChatCompletionRequest {
     this.maxTokens,
     this.topP,
     this.stream,
+    this.tools,
+    this.toolChoice,
     this.extra,
   });
 
@@ -48,6 +71,8 @@ class ChatCompletionRequest {
   final int? maxTokens;
   final double? topP;
   final bool? stream;
+  final List<ToolDefinition>? tools;
+  final ToolChoice? toolChoice;
   final Map<String, Object?>? extra;
 
   Map<String, Object?> toJson() {
@@ -67,6 +92,12 @@ class ChatCompletionRequest {
     }
     if (stream != null) {
       json['stream'] = stream;
+    }
+    if (tools != null && tools!.isNotEmpty) {
+      json['tools'] = tools!.map((tool) => tool.toJson()).toList();
+    }
+    if (toolChoice != null) {
+      json['tool_choice'] = toolChoice!.toJson();
     }
 
     if (extra != null && extra!.isNotEmpty) {
