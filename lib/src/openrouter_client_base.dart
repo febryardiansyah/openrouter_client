@@ -10,25 +10,24 @@ import 'openrouter_exception.dart';
 /// A client for interacting with the OpenRouter API.
 class OpenRouterClient {
   OpenRouterClient({
-    /// Your OpenRouter API key. You can find this in your OpenRouter dashboard.
     required this.apiKey,
-
-    /// Optional HTTP client. If not provided, a new instance will be created.
     http.Client? httpClient,
-
-    /// Optional [HTTP-Referer] header value to include in requests.
     this.referer,
-
-    /// Optional [X-Title] header value to include in requests.
     this.title,
     Map<String, String>? additionalHeaders,
   })  : _http = httpClient ?? http.Client(),
         _additionalHeaders = additionalHeaders ?? const {};
 
+  /// Your OpenRouter API key. You can find this in your OpenRouter dashboard.
   final String apiKey;
+
+  /// Optional [HTTP-Referer] header value to include in requests.
   final String? referer;
+
+  /// Optional [X-Title] header value to include in requests.
   final String? title;
 
+  /// Optional HTTP client. If not provided, a new instance will be created.
   final http.Client _http;
   final Map<String, String> _additionalHeaders;
 

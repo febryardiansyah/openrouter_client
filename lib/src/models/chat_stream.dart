@@ -63,6 +63,9 @@ class ChatCompletionStreamResponse {
     this.object,
     this.created,
     this.model,
+    this.systemFingerprint,
+    this.serviceTier,
+    this.openrouterMetadata,
     this.usage,
   });
 
@@ -70,7 +73,10 @@ class ChatCompletionStreamResponse {
   final String? object;
   final int? created;
   final String? model;
+  final String? systemFingerprint;
+  final String? serviceTier;
   final List<ChatCompletionStreamChoice> choices;
+  final Map<String, dynamic>? openrouterMetadata;
   final ChatCompletionUsage? usage;
 
   factory ChatCompletionStreamResponse.fromJson(Map<String, dynamic> json) {
@@ -86,7 +92,12 @@ class ChatCompletionStreamResponse {
       object: json['object'] as String?,
       created: _parseInt(json['created']),
       model: json['model'] as String?,
+        systemFingerprint: json['system_fingerprint'] as String?,
+        serviceTier: json['service_tier'] as String?,
       choices: choices,
+        openrouterMetadata: json['openrouter_metadata'] is Map<String, dynamic>
+          ? json['openrouter_metadata'] as Map<String, dynamic>
+          : null,
       usage: usageJson is Map<String, dynamic>
           ? ChatCompletionUsage.fromJson(usageJson)
           : null,
