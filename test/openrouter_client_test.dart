@@ -85,30 +85,6 @@ void main() {
       expect(response.choices.first.message.content, 'Hello!');
     });
 
-    test('createCompletion parses response', () async {
-      final client = MockClient((request) async {
-        expect(request.method, 'POST');
-        return http.Response(
-          jsonEncode({
-            'id': 'completion-1',
-            'choices': [
-              {'index': 0, 'finish_reason': 'stop', 'text': 'Done'},
-            ],
-          }),
-          200,
-          headers: {'content-type': 'application/json'},
-        );
-      });
-
-      final api = OpenRouterClient(apiKey: 'token', httpClient: client);
-      final response = await api.createCompletion(
-        CompletionRequest(model: 'test-model', prompt: 'Hello'),
-      );
-
-      expect(response.id, 'completion-1');
-      expect(response.choices.first.text, 'Done');
-    });
-
     test('streamChatCompletion yields streamed chunks', () async {
       final client = MockClient.streaming((request, bodyStream) async {
         final bodyBytes = await bodyStream.toBytes();

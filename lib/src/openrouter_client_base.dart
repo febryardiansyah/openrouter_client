@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 
 import 'models/chat.dart';
 import 'models/chat_stream.dart';
-import 'models/completion.dart';
 import 'models/model_info.dart';
 import 'openrouter_exception.dart';
 
@@ -99,14 +98,6 @@ class OpenRouterClient {
         yield ChatCompletionStreamResponse.fromJson(decoded);
       }
     }
-  }
-
-  /// Creates a completion based on the provided [CompletionRequest].
-  Future<CompletionResponse> createCompletion(
-    CompletionRequest request,
-  ) async {
-    final json = await _postJson('/completions', request.toJson());
-    return CompletionResponse.fromJson(json);
   }
 
   /// Closes the underlying HTTP client. Should be called when the client is no longer needed.

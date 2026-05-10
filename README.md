@@ -7,7 +7,6 @@ A Dart client library for the OpenRouter API.
 - List available models.
 - Create chat completions.
 - Stream chat completions.
-- Create text completions.
 - Tool/function calling via tools.
 - Pass through extra OpenRouter parameters as needed.
 
@@ -72,20 +71,6 @@ await for (final chunk in stream) {
 		print(delta);
 	}
 }
-```
-
-### Text completion
-
-```dart
-final response = await client.createCompletion(
-	CompletionRequest(
-		model: 'openai/gpt-3.5-turbo-instruct',
-		prompt: 'Write a tagline for a coffee shop.',
-		maxTokens: 32,
-	),
-);
-
-print(response.choices.first.text);
 ```
 
 ### Tools (function calling)
