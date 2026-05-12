@@ -10,6 +10,14 @@ A Dart client library for the OpenRouter API.
 - Tool/function calling via tools.
 - Pass through extra OpenRouter parameters as needed.
 
+## Advantages
+
+- Easy to pick up with a small, familiar API surface.
+- Type-safe request/response models for fewer runtime surprises.
+- Lightweight and dependency-friendly for faster builds.
+- Designed for reuse with a single client instance.
+- Flexible extras let you access new OpenRouter options without waiting on updates.
+
 ## Getting started
 
 Add the dependency to your pubspec:
